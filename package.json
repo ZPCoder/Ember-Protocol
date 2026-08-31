@@ -1,0 +1,45 @@
+{
+  "name": "@zpcoder/ember-protocol",
+  "version": "0.1.0",
+  "description": "Versioned public contracts for Ember Protocol clients and services",
+  "type": "module",
+  "private": false,
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "dist",
+    "schema",
+    "openapi",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./schema": "./schema/contracts.schema.json",
+    "./openapi": "./openapi/openapi.json"
+  },
+  "scripts": {
+    "generate": "node scripts/generate-types.mjs",
+    "check:generated": "node scripts/generate-types.mjs --check",
+    "check:compat": "node scripts/check-compatibility.mjs",
+    "build": "npm run generate && tsc -p tsconfig.build.json",
+    "test": "npm run check:generated && npm run check:compat && npm run build && node --test tests/*.test.mjs",
+    "version-packages": "npx --yes @changesets/cli@2.29.8 version",
+    "release": "npx --yes @changesets/cli@2.29.8 publish"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  },
+  "publishConfig": {
+    "access": "restricted",
+    "registry": "https://npm.pkg.github.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ZPCoder/ember-protocol.git"
+  }
+}

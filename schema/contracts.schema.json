@@ -1,0 +1,675 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://protocol.ember.example/schema/contracts-1.0.json",
+  "title": "Ember Protocol public contracts",
+  "type": "object",
+  "$defs": {
+    "ProtocolVersion": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$",
+      "description": "Wire compatibility version: major.minor"
+    },
+    "SemVer": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+    },
+    "Sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "PlayerId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "BattlePlayerIndex": {
+      "type": "integer",
+      "enum": [0, 1]
+    },
+    "RankedFormat": {
+      "type": "string",
+      "enum": ["standard", "wild"]
+    },
+    "ErrorCode": {
+      "type": "string",
+      "enum": [
+        "INVALID_REQUEST",
+        "AUTH_TICKET_INVALID",
+        "AUTH_TICKET_REPLAYED",
+        "SESSION_EXPIRED",
+        "SESSION_REVOKED",
+        "PROTOCOL_MAJOR_UNSUPPORTED",
+        "CLIENT_VERSION_UNSUPPORTED",
+        "CONFIG_VERSION_UNAVAILABLE",
+        "PLAYER_NOT_FOUND",
+        "VERSION_CONFLICT",
+        "IDEMPOTENCY_CONFLICT",
+        "MATCH_NOT_FOUND",
+        "MATCH_ALREADY_FINISHED",
+        "NOT_YOUR_TURN",
+        "COMMAND_REJECTED",
+        "CURSOR_EXPIRED",
+        "RATE_LIMITED",
+        "FORBIDDEN",
+        "MIGRATION_INVALID",
+        "MIGRATION_ALREADY_APPLIED",
+        "INTERNAL_ERROR",
+        "SERVICE_UNAVAILABLE"
+      ]
+    },
+    "ApiError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message", "requestId"],
+      "properties": {
+        "code": { "$ref": "#/$defs/ErrorCode" },
+        "message": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "requestId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "retryable": { "type": "boolean" },
+        "details": {
+          "type": "object",
+          "additionalProperties": {
+            "oneOf": [
+              { "type": "string" },
+              { "type": "number" },
+              { "type": "boolean" },
+              { "type": "null" }
+            ]
+          }
+        }
+      }
+    },
+    "BattleTarget": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "player"],
+          "properties": {
+            "kind": { "const": "hero" },
+            "player": { "$ref": "#/$defs/BattlePlayerIndex" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "entityId"],
+          "properties": {
+            "kind": { "const": "unit" },
+            "entityId": { "type": "string", "minLength": 1, "maxLength": 128 }
+          }
+        }
+      ]
+    },
+    "MulliganCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "player", "cardIndexes"],
+      "properties": {
+        "type": { "const": "mulligan" },
+        "player": { "$ref": "#/$defs/BattlePlayerIndex" },
+        "commandId": { "type": "string", "minLength": 1 },
+        "expectedVersion": { "type": "integer", "minimum": 0 },
+        "cardIndexes": {
+          "type": "array",
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": { "type": "integer", "minimum": 0, "maximum": 9 }
+        }
+      }
+    },
+    "PlayCardCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "player", "cardId"],
+      "properties": {
+        "type": { "const": "play-card" },
+        "player": { "$ref": "#/$defs/BattlePlayerIndex" },
+        "commandId": { "type": "string", "minLength": 1 },
+        "expectedVersion": { "type": "integer", "minimum": 0 },
+        "cardId": { "type": "string", "minLength": 1 },
+        "handIndex": { "type": "integer", "minimum": 0 },
+        "placement": { "type": "string", "enum": ["friendly", "enemy"] },
+        "target": { "$ref": "#/$defs/BattleTarget" }
+      }
+    },
+    "TradeCardCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "player", "cardId"],
+      "properties": {
+        "type": { "const": "trade-card" },
+        "player": { "$ref": "#/$defs/BattlePlayerIndex" },
+        "commandId": { "type": "string", "minLength": 1 },
+        "expectedVersion": { "type": "integer", "minimum": 0 },
+        "cardId": { "type": "string", "minLength": 1 },
+        "handIndex": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "PrepareCardCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "player", "cardId"],
+      "properties": {
+        "type": { "const": "prepare-card" },
+        "player": { "$ref": "#/$defs/BattlePlayerIndex" },
+        "commandId": { "type": "string", "minLength": 1 },
+        "expectedVersion": { "type": "integer", "minimum": 0 },
+        "cardId": { "type": "string", "minLength": 1 },
+        "handIndex": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "AttackCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "player", "attackerId", "target"],
+      "properties": {
+        "type": { "const": "attack" },
+        "player": { "$ref": "#/$defs/BattlePlayerIndex" },
+        "commandId": { "type": "string", "minLength": 1 },
+        "expectedVersion": { "type": "integer", "minimum": 0 },
+        "attackerId": { "type": "string", "minLength": 1 },
+        "target": { "$ref": "#/$defs/BattleTarget" }
+      }
+    },
+    "HeroAttackCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "player", "target"],
+      "properties": {
+        "type": { "const": "hero-attack" },
+        "player": { "$ref": "#/$defs/BattlePlayerIndex" },
+        "commandId": { "type": "string", "minLength": 1 },
+        "expectedVersion": { "type": "integer", "minimum": 0 },
+        "target": { "$ref": "#/$defs/BattleTarget" }
+      }
+    },
+    "ActivateLocationCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "player", "locationId"],
+      "properties": {
+        "type": { "const": "activate-location" },
+        "player": { "$ref": "#/$defs/BattlePlayerIndex" },
+        "commandId": { "type": "string", "minLength": 1 },
+        "expectedVersion": { "type": "integer", "minimum": 0 },
+        "locationId": { "type": "string", "minLength": 1 },
+        "target": { "$ref": "#/$defs/BattleTarget" }
+      }
+    },
+    "UseTitanAbilityCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "player", "unitId", "abilityIndex"],
+      "properties": {
+        "type": { "const": "use-titan-ability" },
+        "player": { "$ref": "#/$defs/BattlePlayerIndex" },
+        "commandId": { "type": "string", "minLength": 1 },
+        "expectedVersion": { "type": "integer", "minimum": 0 },
+        "unitId": { "type": "string", "minLength": 1 },
+        "abilityIndex": { "type": "integer", "minimum": 0, "maximum": 2 },
+        "target": { "$ref": "#/$defs/BattleTarget" }
+      }
+    },
+    "ChooseDiscoverCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "player", "cardId"],
+      "properties": {
+        "type": { "const": "choose-discover" },
+        "player": { "$ref": "#/$defs/BattlePlayerIndex" },
+        "commandId": { "type": "string", "minLength": 1 },
+        "expectedVersion": { "type": "integer", "minimum": 0 },
+        "cardId": { "type": "string", "minLength": 1 },
+        "choiceIndex": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "ChooseOneCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "player", "optionIndex"],
+      "properties": {
+        "type": { "const": "choose-one" },
+        "player": { "$ref": "#/$defs/BattlePlayerIndex" },
+        "commandId": { "type": "string", "minLength": 1 },
+        "expectedVersion": { "type": "integer", "minimum": 0 },
+        "optionIndex": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "HeroPowerCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "player"],
+      "properties": {
+        "type": { "const": "hero-power" },
+        "player": { "$ref": "#/$defs/BattlePlayerIndex" },
+        "commandId": { "type": "string", "minLength": 1 },
+        "expectedVersion": { "type": "integer", "minimum": 0 },
+        "target": { "$ref": "#/$defs/BattleTarget" }
+      }
+    },
+    "UseCoinCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "player"],
+      "properties": {
+        "type": { "const": "use-coin" },
+        "player": { "$ref": "#/$defs/BattlePlayerIndex" },
+        "commandId": { "type": "string", "minLength": 1 },
+        "expectedVersion": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "EndTurnCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "player"],
+      "properties": {
+        "type": { "const": "end-turn" },
+        "player": { "$ref": "#/$defs/BattlePlayerIndex" },
+        "commandId": { "type": "string", "minLength": 1 },
+        "expectedVersion": { "type": "integer", "minimum": 0 },
+        "reason": { "type": "string", "enum": ["manual", "timeout"] }
+      }
+    },
+    "ConcedeCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "player"],
+      "properties": {
+        "type": { "const": "concede" },
+        "player": { "$ref": "#/$defs/BattlePlayerIndex" },
+        "commandId": { "type": "string", "minLength": 1 },
+        "expectedVersion": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "BattleCommand": {
+      "oneOf": [
+        { "$ref": "#/$defs/MulliganCommand" },
+        { "$ref": "#/$defs/PlayCardCommand" },
+        { "$ref": "#/$defs/TradeCardCommand" },
+        { "$ref": "#/$defs/PrepareCardCommand" },
+        { "$ref": "#/$defs/AttackCommand" },
+        { "$ref": "#/$defs/HeroAttackCommand" },
+        { "$ref": "#/$defs/ActivateLocationCommand" },
+        { "$ref": "#/$defs/UseTitanAbilityCommand" },
+        { "$ref": "#/$defs/ChooseDiscoverCommand" },
+        { "$ref": "#/$defs/ChooseOneCommand" },
+        { "$ref": "#/$defs/HeroPowerCommand" },
+        { "$ref": "#/$defs/UseCoinCommand" },
+        { "$ref": "#/$defs/EndTurnCommand" },
+        { "$ref": "#/$defs/ConcedeCommand" }
+      ]
+    },
+    "SetCommanderNameCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "commanderName"],
+      "properties": {
+        "type": { "const": "set-commander-name" },
+        "commanderName": { "type": "string", "minLength": 1, "maxLength": 64 }
+      }
+    },
+    "SaveDeckCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "deck"],
+      "properties": {
+        "type": { "const": "save-deck" },
+        "deck": { "$ref": "#/$defs/LegacyDeck" }
+      }
+    },
+    "DeleteDeckCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "slot"],
+      "properties": {
+        "type": { "const": "delete-deck" },
+        "slot": { "type": "integer", "minimum": 0, "maximum": 26 }
+      }
+    },
+    "PlayerCommand": {
+      "oneOf": [
+        { "$ref": "#/$defs/SetCommanderNameCommand" },
+        { "$ref": "#/$defs/SaveDeckCommand" },
+        { "$ref": "#/$defs/DeleteDeckCommand" }
+      ]
+    },
+    "CommandEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "requestId", "idempotencyKey", "expectedVersion", "command"],
+      "properties": {
+        "protocolVersion": { "$ref": "#/$defs/ProtocolVersion" },
+        "requestId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "idempotencyKey": { "type": "string", "minLength": 8, "maxLength": 128 },
+        "expectedVersion": { "type": "integer", "minimum": 0 },
+        "command": {
+          "oneOf": [
+            { "$ref": "#/$defs/PlayerCommand" },
+            { "$ref": "#/$defs/BattleCommand" }
+          ]
+        }
+      }
+    },
+    "PlayerCommandEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "requestId", "idempotencyKey", "expectedVersion", "command"],
+      "properties": {
+        "protocolVersion": { "$ref": "#/$defs/ProtocolVersion" },
+        "requestId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "idempotencyKey": { "type": "string", "minLength": 8, "maxLength": 128 },
+        "expectedVersion": { "type": "integer", "minimum": 0 },
+        "command": { "$ref": "#/$defs/PlayerCommand" }
+      }
+    },
+    "BattleCommandEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "requestId", "idempotencyKey", "expectedVersion", "command"],
+      "properties": {
+        "protocolVersion": { "$ref": "#/$defs/ProtocolVersion" },
+        "requestId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "idempotencyKey": { "type": "string", "minLength": 8, "maxLength": 128 },
+        "expectedVersion": { "type": "integer", "minimum": 0 },
+        "command": { "$ref": "#/$defs/BattleCommand" }
+      }
+    },
+    "ChannelPlatform": {
+      "type": "string",
+      "enum": ["4399", "chatgpt", "device"]
+    },
+    "ChannelLoginRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["platform", "ticket", "clientVersion", "protocolVersion"],
+      "properties": {
+        "platform": { "$ref": "#/$defs/ChannelPlatform" },
+        "ticket": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "clientVersion": { "$ref": "#/$defs/SemVer" },
+        "protocolVersion": { "$ref": "#/$defs/ProtocolVersion" },
+        "deviceId": { "type": "string", "minLength": 1, "maxLength": 256 }
+      }
+    },
+    "ChannelLoginResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["accessToken", "expiresAt", "player", "configVersion", "protocolVersion"],
+      "properties": {
+        "accessToken": { "type": "string", "minLength": 32 },
+        "expiresAt": { "type": "string", "format": "date-time" },
+        "player": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "displayName", "version"],
+          "properties": {
+            "id": { "$ref": "#/$defs/PlayerId" },
+            "displayName": { "type": "string", "minLength": 1, "maxLength": 64 },
+            "version": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "configVersion": { "$ref": "#/$defs/SemVer" },
+        "protocolVersion": { "$ref": "#/$defs/ProtocolVersion" }
+      }
+    },
+    "VisibleCard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entityId", "cardId", "cost"],
+      "properties": {
+        "entityId": { "type": "string", "minLength": 1 },
+        "cardId": { "type": "string", "minLength": 1 },
+        "cost": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "PublicUnit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entityId", "cardId", "attack", "health", "maxHealth", "canAttack"],
+      "properties": {
+        "entityId": { "type": "string", "minLength": 1 },
+        "cardId": { "type": "string", "minLength": 1 },
+        "attack": { "type": "integer" },
+        "health": { "type": "integer" },
+        "maxHealth": { "type": "integer", "minimum": 0 },
+        "canAttack": { "type": "boolean" },
+        "statuses": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 64 },
+          "maxItems": 32
+        }
+      }
+    },
+    "PublicPlayerState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["playerId", "heroHealth", "heroArmor", "mana", "maxMana", "deckCount", "handCount", "board"],
+      "properties": {
+        "playerId": { "$ref": "#/$defs/PlayerId" },
+        "heroHealth": { "type": "integer" },
+        "heroArmor": { "type": "integer", "minimum": 0 },
+        "mana": { "type": "integer", "minimum": 0 },
+        "maxMana": { "type": "integer", "minimum": 0 },
+        "deckCount": { "type": "integer", "minimum": 0 },
+        "handCount": { "type": "integer", "minimum": 0 },
+        "board": {
+          "type": "array",
+          "maxItems": 7,
+          "items": { "$ref": "#/$defs/PublicUnit" }
+        }
+      }
+    },
+    "ViewerPlayerState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["playerId", "heroHealth", "heroArmor", "mana", "maxMana", "deckCount", "handCount", "board", "hand"],
+      "properties": {
+        "playerId": { "$ref": "#/$defs/PlayerId" },
+        "heroHealth": { "type": "integer" },
+        "heroArmor": { "type": "integer", "minimum": 0 },
+        "mana": { "type": "integer", "minimum": 0 },
+        "maxMana": { "type": "integer", "minimum": 0 },
+        "deckCount": { "type": "integer", "minimum": 0 },
+        "handCount": { "type": "integer", "minimum": 0 },
+        "board": {
+          "type": "array",
+          "maxItems": 7,
+          "items": { "$ref": "#/$defs/PublicUnit" }
+        },
+        "hand": {
+          "type": "array",
+          "maxItems": 12,
+          "items": { "$ref": "#/$defs/VisibleCard" }
+        }
+      }
+    },
+    "RedactedMatchSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["matchId", "stateVersion", "cursor", "phase", "turn", "activePlayerId", "viewer", "opponent", "winnerId"],
+      "properties": {
+        "matchId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "stateVersion": { "type": "integer", "minimum": 0 },
+        "cursor": { "type": "integer", "minimum": 0 },
+        "phase": { "type": "string", "enum": ["mulligan", "playing", "ended"] },
+        "turn": { "type": "integer", "minimum": 0 },
+        "activePlayerId": { "$ref": "#/$defs/PlayerId" },
+        "viewer": { "$ref": "#/$defs/ViewerPlayerState" },
+        "opponent": { "$ref": "#/$defs/PublicPlayerState" },
+        "winnerId": {
+          "oneOf": [
+            { "$ref": "#/$defs/PlayerId" },
+            { "type": "null" }
+          ]
+        },
+        "deadlineAt": {
+          "oneOf": [
+            { "type": "string", "format": "date-time" },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "PvpEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "occurredAt", "payload"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["snapshot", "command-accepted", "command-rejected", "opponent-connected", "opponent-disconnected", "match-ended"]
+        },
+        "occurredAt": { "type": "string", "format": "date-time" },
+        "payload": { "type": "object", "additionalProperties": true }
+      }
+    },
+    "PvpEventEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "matchId", "cursor", "stateVersion", "events"],
+      "properties": {
+        "protocolVersion": { "$ref": "#/$defs/ProtocolVersion" },
+        "matchId": { "type": "string", "minLength": 1 },
+        "cursor": { "type": "integer", "minimum": 0 },
+        "stateVersion": { "type": "integer", "minimum": 0 },
+        "events": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/PvpEvent" },
+          "maxItems": 500
+        },
+        "snapshot": { "$ref": "#/$defs/RedactedMatchSnapshot" }
+      }
+    },
+    "ConfigManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "minimumClientVersion", "sha256", "bundleUrl", "size"],
+      "properties": {
+        "version": { "$ref": "#/$defs/SemVer" },
+        "minimumClientVersion": { "$ref": "#/$defs/SemVer" },
+        "sha256": { "$ref": "#/$defs/Sha256" },
+        "bundleUrl": { "type": "string", "format": "uri", "pattern": "^https://" },
+        "size": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "LegacyDeck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["slot", "name", "format", "cardIds"],
+      "properties": {
+        "slot": { "type": "integer", "minimum": 0, "maximum": 26 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "format": { "$ref": "#/$defs/RankedFormat" },
+        "cardIds": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 60,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "deckCode": { "type": "string", "maxLength": 8192 }
+      }
+    },
+    "LegacyFlutterSaveV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "commanderName", "collection", "gold", "dust", "packs", "decks", "format", "record"],
+      "properties": {
+        "schemaVersion": { "const": 1 },
+        "commanderName": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "collection": {
+          "type": "object",
+          "maxProperties": 1000,
+          "additionalProperties": { "type": "integer", "minimum": 0, "maximum": 999 }
+        },
+        "gold": { "type": "integer", "minimum": 0, "maximum": 1000000000 },
+        "dust": { "type": "integer", "minimum": 0, "maximum": 1000000000 },
+        "packs": {
+          "type": "object",
+          "maxProperties": 100,
+          "additionalProperties": { "type": "integer", "minimum": 0, "maximum": 1000000 }
+        },
+        "decks": {
+          "type": "array",
+          "maxItems": 27,
+          "items": { "$ref": "#/$defs/LegacyDeck" }
+        },
+        "format": { "$ref": "#/$defs/RankedFormat" },
+        "record": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["wins", "losses", "draws"],
+          "properties": {
+            "wins": { "type": "integer", "minimum": 0, "maximum": 1000000000 },
+            "losses": { "type": "integer", "minimum": 0, "maximum": 1000000000 },
+            "draws": { "type": "integer", "minimum": 0, "maximum": 1000000000 }
+          }
+        },
+        "exportedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "GameEventProperty": {
+      "oneOf": [
+        { "type": "string", "maxLength": 500 },
+        { "type": "number" },
+        { "type": "boolean" },
+        { "type": "null" }
+      ]
+    },
+    "GameEventProperties": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 32,
+      "properties": {
+        "platform": { "type": "string", "maxLength": 32 },
+        "clientVersion": { "$ref": "#/$defs/SemVer" },
+        "configVersion": { "$ref": "#/$defs/SemVer" },
+        "protocolVersion": { "$ref": "#/$defs/ProtocolVersion" },
+        "channel": { "type": "string", "maxLength": 32 },
+        "mode": { "type": "string", "enum": ["ai", "pvp", "collection", "deck", "pack"] },
+        "format": { "$ref": "#/$defs/RankedFormat" },
+        "matchId": { "type": "string", "maxLength": 128 },
+        "deckId": { "type": "string", "maxLength": 128 },
+        "packType": { "type": "string", "maxLength": 64 },
+        "result": { "type": "string", "enum": ["win", "loss", "draw", "concede", "timeout", "error"] },
+        "errorCode": { "$ref": "#/$defs/ErrorCode" },
+        "durationMs": { "type": "number", "minimum": 0 },
+        "loadMs": { "type": "number", "minimum": 0 },
+        "fps": { "type": "number", "minimum": 0 },
+        "memoryMb": { "type": "number", "minimum": 0 },
+        "networkType": { "type": "string", "maxLength": 32 },
+        "retryCount": { "type": "integer", "minimum": 0 },
+        "reason": { "type": "string", "maxLength": 200 }
+      }
+    },
+    "GameEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["eventId", "schemaVersion", "sessionId", "occurredAt", "eventName", "properties"],
+      "properties": {
+        "eventId": { "type": "string", "minLength": 16, "maxLength": 128 },
+        "schemaVersion": { "type": "integer", "minimum": 1 },
+        "sessionId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "playerId": { "$ref": "#/$defs/PlayerId" },
+        "occurredAt": { "type": "string", "format": "date-time" },
+        "eventName": {
+          "type": "string",
+          "enum": [
+            "login_started",
+            "login_completed",
+            "load_started",
+            "load_completed",
+            "pack_opened",
+            "deck_saved",
+            "match_started",
+            "match_ended",
+            "connection_lost",
+            "connection_restored",
+            "client_error",
+            "performance_sample"
+          ]
+        },
+        "properties": { "$ref": "#/$defs/GameEventProperties" }
+      }
+    }
+  }
+}

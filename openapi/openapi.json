@@ -1,0 +1,244 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Ember Protocol API",
+    "version": "1.0.0",
+    "description": "Authoritative player, PVP, channel authentication and audited migration API. Servers accept protocol 1.0 and, after a minor release, the immediately previous minor."
+  },
+  "servers": [
+    { "url": "https://api.ember-protocol.example", "description": "Production endpoint supplied by ember-ops" }
+  ],
+  "security": [{ "bearerAuth": [] }],
+  "paths": {
+    "/v1/auth/channel/exchange": {
+      "post": {
+        "operationId": "exchangeChannelTicket",
+        "summary": "Exchange a one-time platform ticket for a short-lived session",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/ChannelLoginRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authenticated session",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ChannelLoginResponse" } } }
+          },
+          "400": { "$ref": "#/components/responses/ApiError" },
+          "401": { "$ref": "#/components/responses/ApiError" },
+          "409": { "$ref": "#/components/responses/ApiError" },
+          "426": { "$ref": "#/components/responses/ApiError" }
+        }
+      }
+    },
+    "/v1/player": {
+      "get": {
+        "operationId": "getPlayer",
+        "summary": "Read the authenticated player's authoritative profile and assets",
+        "responses": {
+          "200": {
+            "description": "Player projection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["playerId", "version", "collection", "gold", "dust", "packs", "decks", "record"],
+                  "properties": {
+                    "playerId": { "$ref": "#/components/schemas/PlayerId" },
+                    "version": { "type": "integer", "minimum": 0 },
+                    "collection": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 0 } },
+                    "gold": { "type": "integer", "minimum": 0 },
+                    "dust": { "type": "integer", "minimum": 0 },
+                    "packs": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 0 } },
+                    "decks": { "type": "array", "maxItems": 27, "items": { "$ref": "#/components/schemas/LegacyDeck" } },
+                    "record": { "type": "object", "additionalProperties": true }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/ApiError" }
+        }
+      }
+    },
+    "/v1/player/commands": {
+      "post": {
+        "operationId": "submitPlayerCommand",
+        "summary": "Apply an idempotent command to authoritative player assets",
+        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PlayerCommandEnvelope" } } }
+        },
+        "responses": {
+          "200": { "description": "Updated player projection" },
+          "401": { "$ref": "#/components/responses/ApiError" },
+          "409": { "$ref": "#/components/responses/ApiError" },
+          "422": { "$ref": "#/components/responses/ApiError" }
+        }
+      }
+    },
+    "/v1/pvp/sessions": {
+      "post": {
+        "operationId": "createPvpSession",
+        "summary": "Create or join an authoritative PVP session",
+        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["protocolVersion", "format", "deckId"],
+                "properties": {
+                  "protocolVersion": { "$ref": "#/components/schemas/ProtocolVersion" },
+                  "format": { "$ref": "#/components/schemas/RankedFormat" },
+                  "deckId": { "type": "string", "minLength": 1 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "PVP session created",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RedactedMatchSnapshot" } } }
+          },
+          "401": { "$ref": "#/components/responses/ApiError" },
+          "409": { "$ref": "#/components/responses/ApiError" }
+        }
+      }
+    },
+    "/v1/pvp/commands": {
+      "post": {
+        "operationId": "submitPvpCommand",
+        "summary": "Submit one idempotent battle command",
+        "parameters": [
+          { "$ref": "#/components/parameters/IdempotencyKey" },
+          { "name": "matchId", "in": "query", "required": true, "schema": { "type": "string", "minLength": 1 } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BattleCommandEnvelope" } } }
+        },
+        "responses": {
+          "202": {
+            "description": "Command accepted",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RedactedMatchSnapshot" } } }
+          },
+          "401": { "$ref": "#/components/responses/ApiError" },
+          "409": { "$ref": "#/components/responses/ApiError" },
+          "422": { "$ref": "#/components/responses/ApiError" }
+        }
+      }
+    },
+    "/v1/pvp/events": {
+      "get": {
+        "operationId": "getPvpEvents",
+        "summary": "Poll the shared PVP event stream; WebSocket uses the same envelope",
+        "parameters": [
+          { "name": "matchId", "in": "query", "required": true, "schema": { "type": "string" } },
+          { "name": "after", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 0, "default": 0 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Redacted events after the requested cursor",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PvpEventEnvelope" } } }
+          },
+          "401": { "$ref": "#/components/responses/ApiError" },
+          "410": { "$ref": "#/components/responses/ApiError" }
+        }
+      }
+    },
+    "/v1/admin/legacy-save-imports/preview": {
+      "post": {
+        "operationId": "previewLegacySaveImport",
+        "summary": "Validate a Flutter save and preview the authoritative asset difference",
+        "security": [{ "adminBearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LegacyFlutterSaveV1" } } }
+        },
+        "responses": {
+          "200": { "description": "Validated import preview and migrationId" },
+          "400": { "$ref": "#/components/responses/ApiError" },
+          "403": { "$ref": "#/components/responses/ApiError" },
+          "409": { "$ref": "#/components/responses/ApiError" }
+        }
+      }
+    },
+    "/v1/admin/legacy-save-imports/{migrationId}/apply": {
+      "post": {
+        "operationId": "applyLegacySaveImport",
+        "summary": "Apply one reviewed migration transaction and write its audit record",
+        "security": [{ "adminBearerAuth": [] }],
+        "parameters": [
+          { "name": "migrationId", "in": "path", "required": true, "schema": { "type": "string", "minLength": 1 } },
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["expectedPlayerVersion", "confirmed"],
+                "properties": {
+                  "expectedPlayerVersion": { "type": "integer", "minimum": 0 },
+                  "confirmed": { "const": true }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Migration applied exactly once" },
+          "403": { "$ref": "#/components/responses/ApiError" },
+          "409": { "$ref": "#/components/responses/ApiError" },
+          "422": { "$ref": "#/components/responses/ApiError" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "opaque" },
+      "adminBearerAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "opaque-admin-session" }
+    },
+    "parameters": {
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "schema": { "type": "string", "minLength": 8, "maxLength": 128 }
+      }
+    },
+    "responses": {
+      "ApiError": {
+        "description": "Structured protocol error",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } }
+      }
+    },
+    "schemas": {
+      "ApiError": { "$ref": "../schema/contracts.schema.json#/$defs/ApiError" },
+      "ProtocolVersion": { "$ref": "../schema/contracts.schema.json#/$defs/ProtocolVersion" },
+      "PlayerId": { "$ref": "../schema/contracts.schema.json#/$defs/PlayerId" },
+      "RankedFormat": { "$ref": "../schema/contracts.schema.json#/$defs/RankedFormat" },
+      "CommandEnvelope": { "$ref": "../schema/contracts.schema.json#/$defs/CommandEnvelope" },
+      "PlayerCommandEnvelope": { "$ref": "../schema/contracts.schema.json#/$defs/PlayerCommandEnvelope" },
+      "BattleCommandEnvelope": { "$ref": "../schema/contracts.schema.json#/$defs/BattleCommandEnvelope" },
+      "ChannelLoginRequest": { "$ref": "../schema/contracts.schema.json#/$defs/ChannelLoginRequest" },
+      "ChannelLoginResponse": { "$ref": "../schema/contracts.schema.json#/$defs/ChannelLoginResponse" },
+      "RedactedMatchSnapshot": { "$ref": "../schema/contracts.schema.json#/$defs/RedactedMatchSnapshot" },
+      "PvpEventEnvelope": { "$ref": "../schema/contracts.schema.json#/$defs/PvpEventEnvelope" },
+      "LegacyFlutterSaveV1": { "$ref": "../schema/contracts.schema.json#/$defs/LegacyFlutterSaveV1" },
+      "LegacyDeck": { "$ref": "../schema/contracts.schema.json#/$defs/LegacyDeck" }
+    }
+  }
+}

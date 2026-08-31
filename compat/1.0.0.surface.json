@@ -1,0 +1,96 @@
+{
+  "protocolVersion": "1.0",
+  "definitions": {
+    "ErrorCode": {
+      "enum": [
+        "INVALID_REQUEST",
+        "AUTH_TICKET_INVALID",
+        "AUTH_TICKET_REPLAYED",
+        "SESSION_EXPIRED",
+        "SESSION_REVOKED",
+        "PROTOCOL_MAJOR_UNSUPPORTED",
+        "CLIENT_VERSION_UNSUPPORTED",
+        "CONFIG_VERSION_UNAVAILABLE",
+        "PLAYER_NOT_FOUND",
+        "VERSION_CONFLICT",
+        "IDEMPOTENCY_CONFLICT",
+        "MATCH_NOT_FOUND",
+        "MATCH_ALREADY_FINISHED",
+        "NOT_YOUR_TURN",
+        "COMMAND_REJECTED",
+        "CURSOR_EXPIRED",
+        "RATE_LIMITED",
+        "FORBIDDEN",
+        "MIGRATION_INVALID",
+        "MIGRATION_ALREADY_APPLIED",
+        "INTERNAL_ERROR",
+        "SERVICE_UNAVAILABLE"
+      ]
+    },
+    "BattleCommand": {
+      "oneOfRefs": [
+        "#/$defs/MulliganCommand",
+        "#/$defs/PlayCardCommand",
+        "#/$defs/TradeCardCommand",
+        "#/$defs/PrepareCardCommand",
+        "#/$defs/AttackCommand",
+        "#/$defs/HeroAttackCommand",
+        "#/$defs/ActivateLocationCommand",
+        "#/$defs/UseTitanAbilityCommand",
+        "#/$defs/ChooseDiscoverCommand",
+        "#/$defs/ChooseOneCommand",
+        "#/$defs/HeroPowerCommand",
+        "#/$defs/UseCoinCommand",
+        "#/$defs/EndTurnCommand",
+        "#/$defs/ConcedeCommand"
+      ]
+    },
+    "PlayerCommand": {
+      "oneOfRefs": [
+        "#/$defs/SetCommanderNameCommand",
+        "#/$defs/SaveDeckCommand",
+        "#/$defs/DeleteDeckCommand"
+      ]
+    },
+    "CommandEnvelope": {
+      "properties": ["protocolVersion", "requestId", "idempotencyKey", "expectedVersion", "command"],
+      "required": ["protocolVersion", "requestId", "idempotencyKey", "expectedVersion", "command"]
+    },
+    "PlayerCommandEnvelope": {
+      "properties": ["protocolVersion", "requestId", "idempotencyKey", "expectedVersion", "command"],
+      "required": ["protocolVersion", "requestId", "idempotencyKey", "expectedVersion", "command"]
+    },
+    "BattleCommandEnvelope": {
+      "properties": ["protocolVersion", "requestId", "idempotencyKey", "expectedVersion", "command"],
+      "required": ["protocolVersion", "requestId", "idempotencyKey", "expectedVersion", "command"]
+    },
+    "ChannelLoginRequest": {
+      "properties": ["platform", "ticket", "clientVersion", "protocolVersion", "deviceId"],
+      "required": ["platform", "ticket", "clientVersion", "protocolVersion"]
+    },
+    "ChannelLoginResponse": {
+      "properties": ["accessToken", "expiresAt", "player", "configVersion", "protocolVersion"],
+      "required": ["accessToken", "expiresAt", "player", "configVersion", "protocolVersion"]
+    },
+    "RedactedMatchSnapshot": {
+      "properties": ["matchId", "stateVersion", "cursor", "phase", "turn", "activePlayerId", "viewer", "opponent", "winnerId", "deadlineAt"],
+      "required": ["matchId", "stateVersion", "cursor", "phase", "turn", "activePlayerId", "viewer", "opponent", "winnerId"]
+    },
+    "PvpEventEnvelope": {
+      "properties": ["protocolVersion", "matchId", "cursor", "stateVersion", "events", "snapshot"],
+      "required": ["protocolVersion", "matchId", "cursor", "stateVersion", "events"]
+    },
+    "ConfigManifest": {
+      "properties": ["version", "minimumClientVersion", "sha256", "bundleUrl", "size"],
+      "required": ["version", "minimumClientVersion", "sha256", "bundleUrl", "size"]
+    },
+    "LegacyFlutterSaveV1": {
+      "properties": ["schemaVersion", "commanderName", "collection", "gold", "dust", "packs", "decks", "format", "record", "exportedAt"],
+      "required": ["schemaVersion", "commanderName", "collection", "gold", "dust", "packs", "decks", "format", "record"]
+    },
+    "GameEvent": {
+      "properties": ["eventId", "schemaVersion", "sessionId", "playerId", "occurredAt", "eventName", "properties"],
+      "required": ["eventId", "schemaVersion", "sessionId", "occurredAt", "eventName", "properties"]
+    }
+  }
+}
